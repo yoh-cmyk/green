@@ -112,8 +112,17 @@
 
         .timestamp {
             color: #00FF00;
-            font-size: 14px;
+            font-size: 12px;
             opacity: 0.8;
+            line-height: 1.4;
+            max-height: 100px;
+            overflow-y: auto;
+            text-align: left;
+            padding: 0 10px;
+        }
+
+        .visit-record {
+            margin-bottom: 3px;
         }
 
         /* @ 모양 리셋 버튼 */
@@ -187,6 +196,36 @@
     </div>
 
     <script>
+        // 60초 후 창 닫기 타이머
+        let closeTimer;
+        let remainingTime = 60;
+        
+        function startCloseTimer() {
+            closeTimer = setTimeout(() => {
+                // 창 닫기 시도
+                if (window.opener || window.parent !== window) {
+                    // 팝업 창이거나 iframe인 경우
+                    window.close();
+                } else {
+                    // 일반 브라우저 탭인 경우 - 사용자에게 알림
+                    alert('60초가 경과했습니다. 창을 닫아주세요.');
+                    // 또는 페이지를 빈 페이지로 리다이렉트
+                    // window.location.href = 'about:blank';
+                }
+            }, 60000); // 60초 = 60000 밀리초
+        }
+        
+        // 남은 시간 표시 (선택사항 - 사용자가 원하면 활성화)
+        function updateCountdown() {
+            // 카운트다운을 표시하고 싶다면 이 함수를 사용
+            const countdownInterval = setInterval(() => {
+                remainingTime--;
+                if (remainingTime <= 0) {
+                    clearInterval(countdownInterval);
+                }
+                // 필요시 화면에 남은 시간 표시 가능
+            }, 1000);
+        }
         // 방문자 카운터 관리
         function updateCounter() {
             // localStorage에서 현재 카운트 가져오기
@@ -214,7 +253,7 @@
                 counterElement.classList.remove('updated');
             }, 600);
             
-            // 마지막 방문 시간 업데이트
+            // 방문 시간 기록 (배열로 누적 저장)
             const now = new Date();
             const timestamp = now.toLocaleString('ko-KR', {
                 year: 'numeric',
@@ -225,8 +264,50 @@
                 second: '2-digit'
             });
             
-            localStorage.setItem('lastVisit', timestamp);
-            document.getElementById('lastVisit').textContent = timestamp;
+            // 기존 방문 기록 가져오기
+            let visitHistory = localStorage.getItem('visitHistory');
+            if (visitHistory === null) {
+                visitHistory = [];
+            } else {
+                visitHistory = JSON.parse(visitHistory);
+            }
+            
+            // 새 방문 기록 추가
+            visitHistory.push({
+                visitNumber: currentCount,
+                timestamp: timestamp
+            });
+            
+            // localStorage에 저장
+            localStorage.setItem('visitHistory', JSON.stringify(visitHistory));
+            
+            // 화면에 모든 방문 기록 표시
+            displayVisitHistory(visitHistory);
+        }
+        
+        // 방문 기록 표시 함수
+        function displayVisitHistory(history) {
+            const timestampElement = document.getElementById('lastVisit');
+            
+            if (history.length === 0) {
+                timestampElement.innerHTML = '';
+                return;
+            }
+            
+            // 최근 5개 기록만 표시 (화면 공간 고려)
+            const recentHistory = history.slice(-5);
+            let historyHTML = '';
+            
+            recentHistory.forEach(record => {
+                historyHTML += `<div class="visit-record">${record.visitNumber}번째: ${record.timestamp}</div>`;
+            });
+            
+            // 5개보다 많은 기록이 있으면 표시
+            if (history.length > 5) {
+                historyHTML = `<div class="visit-record">... (이전 ${history.length - 5}개 기록)</div>` + historyHTML;
+            }
+            
+            timestampElement.innerHTML = historyHTML;
         }
         
         // 카운터 초기화 함수
@@ -234,8 +315,8 @@
             if (confirm('정말로 카운터를 초기화하시겠습니까?')) {
                 localStorage.setItem('visitorCount', '0');
                 document.getElementById('counter').textContent = '0';
-                localStorage.removeItem('lastVisit');
-                document.getElementById('lastVisit').textContent = '';
+                localStorage.removeItem('visitHistory'); // 방문 기록도 함께 삭제
+                document.getElementById('lastVisit').innerHTML = '';
                 
                 // 페이지 새로고침으로 카운터 재시작
                 setTimeout(() => {
@@ -247,13 +328,15 @@
         // 페이지 로드시 실행
         window.addEventListener('load', function() {
             updateCounter();
+            startCloseTimer(); // 60초 타이머 시작
         });
         
-        // 기존 방문 시간이 있으면 표시 (새로고침 시)
+        // 기존 방문 기록이 있으면 표시 (새로고침 시)
         window.addEventListener('DOMContentLoaded', function() {
-            const savedTime = localStorage.getItem('lastVisit');
-            if (savedTime) {
-                document.getElementById('lastVisit').textContent = savedTime;
+            const savedHistory = localStorage.getItem('visitHistory');
+            if (savedHistory) {
+                const history = JSON.parse(savedHistory);
+                displayVisitHistory(history);
             }
         });
     </script>
